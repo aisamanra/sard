@@ -29,6 +29,7 @@ pub enum NamedItem<'a> {
 }
 
 impl<'a> NamedItem<'a> {
+    /// Convert this value into a human-readable string representation
     pub fn to_string(&self) -> String {
         match self {
             NamedItem::Class(name, _) => format!("class {}", const_name(name)),
@@ -57,6 +58,8 @@ impl<'a> NamedItem<'a> {
     }
 }
 
+/// Convert a Ruby AST that represents a constant into the constant it
+/// represents.
 fn const_name<'a>(mut node: &'a p::Node) -> String {
     let mut parts: Vec<&'a String> = Vec::new();
     while let p::Node::Const(cnst) = node {
@@ -76,6 +79,7 @@ fn const_name<'a>(mut node: &'a p::Node) -> String {
     name
 }
 
+/// The type of `attr_` helper used
 #[derive(Debug)]
 pub enum AttrType {
     Reader,
@@ -83,12 +87,14 @@ pub enum AttrType {
     Accessor,
 }
 
+/// The type of Sorbet props definition used
 #[derive(Debug)]
 pub enum PropType {
     Prop,
     Const,
 }
 
+/// Represents a computed Sorbet `sig`
 #[derive(Debug)]
 pub struct Sig<'a> {
     pub params: HashMap<&'a str, Type<'a>>,
@@ -96,6 +102,8 @@ pub struct Sig<'a> {
 }
 
 impl<'a> Sig<'a> {
+    /// Extract the key-value pairs representing types and insert them
+    /// into this sig
     fn extract_params(&mut self, kwargs: &'a p::nodes::Kwargs) {
         for pair in kwargs.pairs.iter() {
             if let p::Node::Pair(p::nodes::Pair { key, value, .. }) = pair {
@@ -110,6 +118,12 @@ impl<'a> Sig<'a> {
         }
     }
 
+    /// Attempt to convert this send into the representation of a
+    /// sig`. This will return `None` if the sig is ill-formed: for
+    /// example, if it's not a send, or if we can't parse the elements
+    /// of it
+    ///
+    /// TODO: parse the rest of the type syntax
     pub fn parse_sig(send: &'a p::Node) -> Option<Sig<'a>> {
         let mut node = send;
         let mut sig = Sig {
@@ -141,9 +155,12 @@ impl<'a> Sig<'a> {
     }
 }
 
+/// A representation of a type.
+///
+/// TODO: actually parse types into a structured representation
 #[derive(Debug)]
 pub struct Type<'a> {
-    pub node: &'a p::Node,
+    node: &'a p::Node,
 }
 
 impl<'a> Type<'a> {
