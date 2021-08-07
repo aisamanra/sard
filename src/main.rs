@@ -9,28 +9,22 @@ fn main() {
     let p::ParserResult { ast, comments, .. } = parser.do_parse();
     let ast = ast.unwrap();
 
-    let mut defn = DefnIter { context: vec![] };
+    let mut defn = DefnIter {
+        stashed_sig: None,
+        context: vec![],
+    };
     defn.push_next(&ast);
     for f in defn {
-        println!("Got: {:?}", f.to_string());
+        println!("Defn: {:?}", f);
     }
 
     for f in comments {
         println!("C: {:?}: {:?}", f, std::str::from_utf8(&SAMPLE[f.location.begin..f.location.end]));
     }
-    // File {
-    //     root: &ast,
-    //     comments: &comments,
-    //     context: vec![&ast],
-    // }.traverse();
-    // println!("Got: {:?}", ast.unwrap());
-    // for c in comments {
-    //     let text = &SAMPLE[c.location.begin_pos..c.location.end_pos];
-    //     println!("got: {:?}: {:?}", c, std::str::from_utf8(text));
-    // }
 }
 
 struct DefnIter<'a> {
+    stashed_sig: Option<types::Sig<'a>>,
     context: Vec<NamedItem<'a>>,
 }
 
@@ -98,22 +92,26 @@ impl<'a> DefnIter<'a> {
     fn push_next(&mut self, node: &'a p::Node) {
         match node {
             p::Node::Module(module) => {
+                self.stashed_sig = None;
                 self.context.push(NamedItem::Module(&module.name, module));
             },
             p::Node::Class(class) => {
+                self.stashed_sig = None;
                 self.context.push(NamedItem::Class(&class.name, class));
             },
             p::Node::Def(def) => {
-                self.context.push(NamedItem::Def(def, None));
+                let sig = std::mem::replace(&mut self.stashed_sig, None);
+                self.context.push(NamedItem::Def(def, sig));
             },
             p::Node::Defs(defs) => {
-                self.context.push(NamedItem::Defs(defs, None));
+                let sig = std::mem::replace(&mut self.stashed_sig, None);
+                self.context.push(NamedItem::Defs(defs, sig));
             },
             p::Node::Casgn(casgn) => {
                 self.context.push(NamedItem::Casgn(casgn));
             },
             p::Node::Send(send) => {
-                if let Some(node) = known_defining_method(&send) {
+                if let Some(node) = self.known_defining_method(&send) {
                     self.context.push(node);
                 }
             },
@@ -121,6 +119,13 @@ impl<'a> DefnIter<'a> {
                 for s in stmts {
                     self.push_next(s);
                 }
+            },
+            p::Node::Block(p::nodes::Block {call, body: Some(body), ..}) => {
+                match call.as_ref() {
+                    p::Node::Send( p::nodes::Send { method_name, .. }) if method_name == "sig" => (),
+                    _ => return,
+                }
+                self.stashed_sig = types::Sig::parse_sig(body);
             },
             _ => (),
         }
@@ -135,30 +140,31 @@ impl<'a> DefnIter<'a> {
             _ => (),
         }
     }
-}
 
-fn known_defining_method<'a>(send: &'a p::nodes::Send) -> Option<NamedItem<'a>> {
-    if send.args.len() < 1 {
-        return None;
+    fn known_defining_method(&mut self, send: &'a p::nodes::Send) -> Option<NamedItem<'a>> {
+        if send.args.len() < 1 {
+            return None;
+        }
+        let name = if let p::Node::Sym(ref name) = send.args[0] {
+            name
+        } else {
+            return None;
+        };
+        match send.method_name.as_ref() {
+            "attr_reader" =>
+                Some(NamedItem::Attr(AttrType::Reader, send, name, std::mem::replace(&mut self.stashed_sig, None))),
+            "attr_writer" =>
+                Some(NamedItem::Attr(AttrType::Writer, send, name, std::mem::replace(&mut self.stashed_sig, None))),
+            "attr_accessor" =>
+                Some(NamedItem::Attr(AttrType::Accessor, send, name, std::mem::replace(&mut self.stashed_sig, None))),
+            "prop" =>
+                Some(NamedItem::Prop(PropType::Prop, send, name, &send.args[1])),
+            "const" =>
+                Some(NamedItem::Prop(PropType::Const, send, name, &send.args[1])),
+            _ => None,
+        }
     }
-    let name = if let p::Node::Sym(ref name) = send.args[0] {
-        name
-    } else {
-        return None;
-    };
-    match send.method_name.as_ref() {
-        "attr_reader" =>
-            Some(NamedItem::Attr(AttrType::Reader, send, name, None)),
-        "attr_writer" =>
-            Some(NamedItem::Attr(AttrType::Writer, send, name, None)),
-        "attr_accessor" =>
-            Some(NamedItem::Attr(AttrType::Accessor, send, name, None)),
-        "prop" =>
-            Some(NamedItem::Prop(PropType::Prop, send, name, &send.args[1])),
-        "const" =>
-            Some(NamedItem::Prop(PropType::Const, send, name, &send.args[1])),
-        _ => None,
-    }
+
 }
 
 fn const_name<'a>(mut node: &'a p::Node) -> String {

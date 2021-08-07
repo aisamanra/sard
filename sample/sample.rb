@@ -11,9 +11,9 @@ module Opus::Foo
       puts "hey"
     end
     # and another method
-    sig {returns(Integer)}
-    def whatever
-      5 + 5
+    sig {params(x: Integer).returns(Integer)}
+    def add_one(x)
+      x + 1
     end
 
     # here is a Ruby metaprogrammed method
