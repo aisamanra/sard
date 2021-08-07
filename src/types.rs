@@ -1,20 +1,31 @@
 use lib_ruby_parser as p;
 use std::collections::HashMap;
 
+/// A representation of a thing in Ruby which can have a name and
+/// which we'll want to include in the `Sard` output.
 #[derive(Debug)]
 pub enum NamedItem<'a> {
+    /// A Ruby class created with the `class` keyword
     Class(&'a p::nodes::Node, &'a p::nodes::Class),
+    /// A Ruby module created with the `module` keyword
     Module(&'a p::nodes::Node, &'a p::nodes::Module),
+    /// A plain method definition, optionally with associated `sig`
     Def(&'a p::nodes::Def, Option<Sig<'a>>),
+    /// A static method definition, optionally with associated `sig`
     Defs(&'a p::nodes::Defs, Option<Sig<'a>>),
+    /// A getter/setter method defined with `attr_`, optionally with
+    /// associated `sig`
     Attr(
         AttrType,
         &'a p::nodes::Send,
         &'a p::nodes::Sym,
         Option<Sig<'a>>,
     ),
+    /// A getter/setter method defined with Sorbet-compatible `prop`
+    /// or `const`, optionally with associated `sig`
     Prop(PropType, &'a p::nodes::Send, &'a p::nodes::Sym, &'a p::Node),
-    Casgn(&'a p::nodes::Casgn),
+    /// A constant assignment
+    Casgn(&'a p::nodes::Casgn, Option<Type<'a>>),
 }
 
 impl<'a> NamedItem<'a> {
@@ -41,7 +52,7 @@ impl<'a> NamedItem<'a> {
                 },
                 name.name.bytes.to_string_lossy(),
             ),
-            NamedItem::Casgn(casgn) => format!("{}", casgn.name),
+            NamedItem::Casgn(casgn, _) => format!("{}", casgn.name),
         }
     }
 }
