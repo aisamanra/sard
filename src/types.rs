@@ -7,7 +7,12 @@ pub enum NamedItem<'a> {
     Module(&'a p::nodes::Node, &'a p::nodes::Module),
     Def(&'a p::nodes::Def, Option<Sig<'a>>),
     Defs(&'a p::nodes::Defs, Option<Sig<'a>>),
-    Attr(AttrType, &'a p::nodes::Send, &'a p::nodes::Sym, Option<Sig<'a>>),
+    Attr(
+        AttrType,
+        &'a p::nodes::Send,
+        &'a p::nodes::Sym,
+        Option<Sig<'a>>,
+    ),
     Prop(PropType, &'a p::nodes::Send, &'a p::nodes::Sym, &'a p::Node),
     Casgn(&'a p::nodes::Casgn),
 }
@@ -15,35 +20,28 @@ pub enum NamedItem<'a> {
 impl<'a> NamedItem<'a> {
     pub fn to_string(&self) -> String {
         match self {
-            NamedItem::Class(name, _) =>
-                format!("class {}", const_name(name)),
-            NamedItem::Module(name, _) =>
-                format!("module {}", const_name(name)),
-            NamedItem::Def(name, _) =>
-                format!("def {}", name.name),
-            NamedItem::Defs(name, _) =>
-                format!("def self.{}", name.name),
-            NamedItem::Attr(typ, _, name, _) =>
-                format!(
-                    "attr_{} {}",
-                    match typ {
-                        AttrType::Reader => "reader",
-                        AttrType::Writer => "writer",
-                        AttrType::Accessor => "accessor",
-                    },
-                    name.name.bytes.to_string_lossy(),
-                ),
-            NamedItem::Prop(typ, _, name, _) =>
-                format!(
-                    "{} {}",
-                    match typ {
-                        PropType::Prop => "prop",
-                        PropType::Const => "const",
-                    },
-                    name.name.bytes.to_string_lossy(),
-                ),
-            NamedItem::Casgn(casgn) =>
-                format!("{}", casgn.name),
+            NamedItem::Class(name, _) => format!("class {}", const_name(name)),
+            NamedItem::Module(name, _) => format!("module {}", const_name(name)),
+            NamedItem::Def(name, _) => format!("def {}", name.name),
+            NamedItem::Defs(name, _) => format!("def self.{}", name.name),
+            NamedItem::Attr(typ, _, name, _) => format!(
+                "attr_{} {}",
+                match typ {
+                    AttrType::Reader => "reader",
+                    AttrType::Writer => "writer",
+                    AttrType::Accessor => "accessor",
+                },
+                name.name.bytes.to_string_lossy(),
+            ),
+            NamedItem::Prop(typ, _, name, _) => format!(
+                "{} {}",
+                match typ {
+                    PropType::Prop => "prop",
+                    PropType::Const => "const",
+                },
+                name.name.bytes.to_string_lossy(),
+            ),
+            NamedItem::Casgn(casgn) => format!("{}", casgn.name),
         }
     }
 }
@@ -90,7 +88,11 @@ impl<'a> Sig<'a> {
     fn extract_params(&mut self, kwargs: &'a p::nodes::Kwargs) {
         for pair in kwargs.pairs.iter() {
             if let p::Node::Pair(p::nodes::Pair { key, value, .. }) = pair {
-                let k = if let p::Node::Sym(sym) = key.as_ref() { sym } else { continue };
+                let k = if let p::Node::Sym(sym) = key.as_ref() {
+                    sym
+                } else {
+                    continue;
+                };
                 let v = Type::from_node(value.as_ref());
                 self.params.insert(k.name.bytes.as_str_lossy().unwrap(), v);
             }
@@ -109,14 +111,13 @@ impl<'a> Sig<'a> {
                     if let Some(p::Node::Kwargs(kwargs)) = send.args.last() {
                         sig.extract_params(kwargs)
                     }
-                },
+                }
                 "returns" => {
                     if let Some(arg) = send.args.first() {
                         sig.returns = Some(Type::from_node(arg));
                     }
-                },
-                "void" =>
-                    sig.returns = None,
+                }
+                "void" => sig.returns = None,
                 _ => (),
             }
             if let Some(n) = &send.recv {

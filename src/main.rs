@@ -16,6 +16,10 @@ fn main() {
     }
 
     for f in comments {
-        println!("C: {:?}: {:?}", f, std::str::from_utf8(&SAMPLE[f.location.begin..f.location.end]));
+        println!(
+            "C: {:?}: {:?}",
+            f,
+            std::str::from_utf8(&SAMPLE[f.location.begin..f.location.end])
+        );
     }
 }
